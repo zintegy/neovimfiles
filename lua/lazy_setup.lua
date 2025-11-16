@@ -13,6 +13,11 @@ require("lazy").setup({
   },
   { import = "community" },
   { import = "plugins" },
+  { 'petertriho/nvim-scrollbar', version = '*'},
+  { 'axieax/urlview.nvim' },
+  { 'dstein64/nvim-scrollview', version = "*"},
+  { 'lukas-reineke/indent-blankline.nvim', enabled=true},
+  { 'HiPhish/rainbow-delimiters.nvim' },
 } --[[@as LazySpec]], {
   -- Configure any other `lazy.nvim` configuration options here
   install = { colorscheme = { "astrotheme", "habamax" } },
@@ -34,7 +39,9 @@ require("lazy").setup({
 
 {
   "folke/snacks.nvim",
-  opts = {},
+  opts = {
+      indent= { enabled = false }
+    },
   keys = {
     -- Top Pickers & Explorer
     { "<leader><space>", function() Snacks.picker.smart() end, desc = "Smart Find Files" },
