@@ -1,4 +1,21 @@
 vim.cmd("let mapleader = '\\'")
+
+-- Use Node v22 for LSP servers (pyright)
+vim.env.PATH = "/home/ydeng/.nvm/versions/node/v22.22.1/bin:" .. vim.env.PATH
+
+-- OSC 52 clipboard: allows yank to reach local clipboard over SSH/tmux
+vim.g.clipboard = {
+  name = 'OSC 52',
+  copy = {
+    ['+'] = require('vim.ui.clipboard.osc52').copy('+'),
+    ['*'] = require('vim.ui.clipboard.osc52').copy('*'),
+  },
+  paste = {
+    ['+'] = require('vim.ui.clipboard.osc52').paste('+'),
+    ['*'] = require('vim.ui.clipboard.osc52').paste('*'),
+  },
+}
+
 --
 --
 -- This file simply bootstraps the installation of Lazy.nvim and then calls other files for execution
@@ -68,6 +85,80 @@ vim.cmd("map <Leader>w :w<Esc>")
 vim.cmd("map <Leader>wq :wq<Esc>")
 
 
+-- toggle comment
+vim.keymap.set("n", "<leader><leader>", "gcc", { remap = true, desc = "Toggle comment line" })
+vim.keymap.set("v", "<leader><leader>", "gc", { remap = true, desc = "Toggle comment block" })
+
+-- quickfix navigation
+vim.keymap.set("n", "<leader>xn", ":cnext<CR>", { silent = true, desc = "Next quickfix item" })
+vim.keymap.set("n", "<leader>xN", ":cprev<CR>", { silent = true, desc = "Prev quickfix item" })
+vim.keymap.set("n", "<leader>xo", ":copen<CR>", { silent = true, desc = "Open quickfix list" })
+vim.keymap.set("n", "<leader>xx", ":cclose<CR>", { silent = true, desc = "Close quickfix list" })
+
+vim.keymap.set("n", "<leader>yy", function()
+  vim.cmd("%y+")
+  vim.notify("Copied entire file to clipboard")
+end, { desc = "Copy entire file to clipboard" })
+
+vim.keymap.set("n", "<leader>sr", function()
+  Snacks.picker.resume()
+end, { desc = "Resume last Snacks picker" })
+
+vim.keymap.set("n", "grr", function()
+  Snacks.picker.lsp_references({ include_declaration = true, include_current = true })
+end, { desc = "Find references (Snacks picker)" })
+
+vim.keymap.set("n", "<leader>ll", function()
+  local enabled = vim.diagnostic.is_enabled()
+  vim.diagnostic.enable(not enabled)
+  vim.notify("Diagnostics " .. (enabled and "disabled" or "enabled"))
+end, { desc = "Toggle diagnostics" })
+
+vim.keymap.set("n", "<leader>?", function()
+  local lines = {
+    "  Custom Keybindings",
+    "  ──────────────────",
+    "  \\\\    Toggle comment (normal/visual)",
+    "  \\gg    Copy GitHub link (normal/visual)",
+    "  gd     Go to definition + highlight for n/N",
+    "  gh     Jump back",
+    "  gl     Jump forward",
+    "  K      Hover info (LSP)",
+    "  \\sr    Resume last Snacks picker",
+    "  grr    Find references (Snacks picker)",
+    "  *      Search word under cursor",
+    "  cs\"'   Change surrounding \" to '",
+    "  ds\"    Delete surrounding \"",
+    "  ysiw)  Surround word with ()",
+    "  mX/'X  Set/jump to mark X (A-Z = global)",
+    "  \\xn    Next quickfix item",
+    "  \\xN    Prev quickfix item",
+    "  \\xo    Open quickfix list",
+    "  \\xx    Close quickfix list",
+    "  \\yy    Copy entire file to clipboard",
+    "  \\ll    Toggle diagnostics",
+    "  \\?     This help",
+  }
+  vim.api.nvim_echo(vim.tbl_map(function(l) return {l .. "\n"} end, lines), false, {})
+end, { desc = "Show custom keybindings" })
+
+
+-- gd: go to definition and set search pattern for n/N
+vim.api.nvim_create_autocmd("LspAttach", {
+  callback = function(ev)
+    vim.keymap.set("n", "gd", function()
+      local word = vim.fn.expand("<cword>")
+      vim.fn.setreg("/", "\\<" .. word .. "\\>")
+      vim.opt.hlsearch = true
+      vim.lsp.buf.definition()
+    end, { buffer = ev.buf, desc = "Go to definition + highlight word" })
+  end,
+})
+
+-- jump list navigation
+vim.keymap.set("n", "gh", "<C-o>", { desc = "Jump back" })
+vim.keymap.set("n", "gl", "<C-i>", { desc = "Jump forward" })
+
 -- general movement
 vim.cmd("nnoremap j gj")
 vim.cmd("nnoremap k gk")
@@ -98,6 +189,35 @@ vim.cmd("set undodir=/tmp")
 vim.cmd("map <ScrollWheelUp> <C-Y>")
 vim.cmd("map <ScrollWheelDown> <C-E>")
 vim.cmd("highlight Search  guibg=#56545f")
+
+-- Copy GitHub link for current line
+local function github_link(start_line, end_line)
+  local file = vim.fn.expand("%:p")
+  local repo_root = vim.fn.systemlist("git -C " .. vim.fn.shellescape(vim.fn.expand("%:p:h")) .. " rev-parse --show-toplevel")[1]
+  local relative = file:sub(#repo_root + 2)
+  local branch = "master"
+  local remote = vim.fn.systemlist("git -C " .. vim.fn.shellescape(repo_root) .. " remote get-url origin")[1]
+  local org_repo = remote:match("github%.com[:/](.+)%.git$") or remote:match("github%.com[:/](.+)$")
+  local url
+  if end_line and start_line ~= end_line then
+    url = string.format("https://github.com/%s/blob/%s/%s#L%d-L%d", org_repo, branch, relative, start_line, end_line)
+  else
+    url = string.format("https://github.com/%s/blob/%s/%s#L%d", org_repo, branch, relative, start_line)
+  end
+  vim.fn.setreg("+", url)
+  vim.notify("Copied: " .. url)
+end
+
+vim.keymap.set("n", "<leader>gg", function()
+  github_link(vim.fn.line("."))
+end, { desc = "Copy GitHub link for current line" })
+
+vim.keymap.set("v", "<leader>gg", function()
+  local s = vim.fn.line("v")
+  local e = vim.fn.line(".")
+  if s > e then s, e = e, s end
+  github_link(s, e)
+end, { desc = "Copy GitHub link for selected lines" })
 
 -- highlight trailing whitespace
 -- this is awful for nvim homescreen so nevermind
@@ -253,7 +373,6 @@ local FileNameModifer = {
 FileNameBlock = utils.insert(FileNameBlock,
     FileIcon,
     utils.insert(FileNameModifer, FileName), -- a new table where FileName is a child of FileNameModifier
-    FileFlags,
     { provider = '%<'} -- this means that the statusline is cut here when there's not enough space
 )
 
@@ -315,8 +434,7 @@ local GitChanges = {
     end, 
     hl = {fg = "git_add"}
   },
-  {
-    provider = function(self)
+  { provider = function(self)
       local count = self.status_dict.changed or 0
       return (" " .. count.. " ")
     end, 
@@ -333,10 +451,92 @@ local GitChanges = {
 }
 
 
+local Breadcrumbs = {
+  provider = function()
+    local ok, aerial = pcall(require, "aerial")
+    if not ok then return "" end
+    local data = aerial.get_location(true) or {}
+    if #data == 0 then return "" end
+    local result = "." .. data[1].name
+    for i = 2, #data do
+      result = result .. " > " .. data[i].name
+    end
+    return result
+  end,
+  hl = { fg = utils.get_highlight("Directory").fg },
+}
+
+-- Track whether pyright has sent its first batch of diagnostics
+vim.g.pyright_ready = false
+
+-- Filter asynq diagnostics at the source and track pyright readiness
+local original_publish = vim.lsp.handlers["textDocument/publishDiagnostics"]
+vim.lsp.handlers["textDocument/publishDiagnostics"] = function(err, result, ctx, config)
+  local client = vim.lsp.get_client_by_id(ctx.client_id)
+  if client and client.name == "pyright" then
+    vim.g.pyright_ready = true
+    result.diagnostics = vim.tbl_filter(function(d)
+      if not d.message then return true end
+      return not (d.message:match("Generator") or d.message:match("asynq") or d.message:match("l0cache"))
+    end, result.diagnostics)
+  end
+  return original_publish(err, result, ctx, config)
+end
+
+vim.api.nvim_create_autocmd("LspDetach", {
+  callback = function(args)
+    local client = vim.lsp.get_client_by_id(args.data.client_id)
+    if client and client.name == "pyright" then
+      vim.g.pyright_ready = false
+    end
+  end,
+})
+
+local PyrightStatus = {
+  provider = function()
+    local clients = vim.lsp.get_clients({ bufnr = 0, name = "pyright" })
+    if #clients == 0 then return "" end
+    if vim.g.pyright_ready then return " 󰄭" end
+    return " ..."
+  end,
+  hl = function()
+    if vim.g.pyright_ready then
+      return { fg = "green" }
+    end
+    return { fg = "orange" }
+  end,
+}
+
+local ram_cache = { text = "", last_update = 0 }
+local RamUsage = {
+  provider = function()
+    local now = os.time()
+    if now - ram_cache.last_update < 5 then return ram_cache.text end
+    local f = io.open("/proc/meminfo", "r")
+    if not f then return "" end
+    local total, available
+    for line in f:lines() do
+      if line:match("^MemTotal:") then
+        total = tonumber(line:match("(%d+)"))
+      elseif line:match("^MemAvailable:") then
+        available = tonumber(line:match("(%d+)"))
+      end
+      if total and available then break end
+    end
+    f:close()
+    if not total or not available then return "" end
+    local used_gb = (total - available) / 1024 / 1024
+    ram_cache.text = string.format(" %.1fG", used_gb)
+    ram_cache.last_update = now
+    return ram_cache.text
+  end,
+  hl = { fg = "cyan" },
+}
+
 local DefaultStatusline = {
       ViMode, Space, --Git,
-      Space, GitChanges,  Align, FileNameBlock, Align, 
-      Ruler, Space, ScrollBar, Space, ViMode, Space,
+      Space, GitChanges, Space, PyrightStatus, Align, FileNameBlock, Breadcrumbs, FileFlags, Align,
+      Ruler, Space, ScrollBar, Space, RamUsage, Space,
 }
 
 
@@ -388,31 +588,29 @@ vim.lsp.config('pylsp', {
   settings = {
     pylsp = {
       plugins = {
-        flake8 = { enabled = false },
-        mccabe = {enabled = false},
-        pycodestyle = { enabled=false,maxLineLength = 100, 
-                    ignore={
-                        "W503" -- line break before binary operator
-                    }},
-        pyls_black = { enabled=false, line_length=65 },
-        black = { enabled=false , line_length=65 },
-		isort = { enabled=false, profile = "black" },
-      }
-    }
-  }
+        autopep8 = { enabled = false },
+        yapf = { enabled = false },
+        pycodestyle = { enabled = false },
+        pyflakes = { enabled = false },
+        mccabe = { enabled = false },
+      },
+    },
+  },
 })
---vim.lsp.config('pylsp', {
---    settings = {
---        pylsp = {
---            plugins = {
---                pycodestyle = {
---                    ignore = {'W391', 'W503'},
---                    maxLineLength = 100,
---                }
---            }
---        }
---    }
---})
+
+vim.lsp.config('pyright', {
+  settings = {
+    python = {
+      pythonPath = "/home/ydeng/ans/venv3.12/bin/python3",
+      analysis = {
+        diagnosticSeverityOverrides = {
+          reportPrivateImportUsage = "none",
+        },
+      },
+    },
+  },
+})
+
 
 require("mason-lspconfig").setup({
     ensure_installed = {},
@@ -425,6 +623,27 @@ require("mason-lspconfig").setup({
 })
 require("scrollview").setup()
 require('urlview').setup()
+
+-- Re-attach aerial after :e so breadcrumbs don't disappear
+-- Only runs when re-editing an already-loaded buffer, not on first open
+vim.api.nvim_create_autocmd("BufReadPost", {
+  callback = function(args)
+    if not vim.b[args.buf]._aerial_seen then
+      vim.b[args.buf]._aerial_seen = true
+      return
+    end
+    vim.schedule(function()
+      local ok, backends = pcall(require, "aerial.backends")
+      if not ok then return end
+      local attach_ok, _ = pcall(backends.attach, args.buf, true)
+      if not attach_ok then return end
+      local backend = backends.get(args.buf)
+      if backend then
+        backend.fetch_symbols(args.buf)
+      end
+    end)
+  end,
+})
 
 require('lazy').plugins()
 

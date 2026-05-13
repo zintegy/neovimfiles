@@ -18,6 +18,8 @@ require("lazy").setup({
   { 'dstein64/nvim-scrollview', version = "*"},
   { 'lukas-reineke/indent-blankline.nvim', enabled=true},
   { 'HiPhish/rainbow-delimiters.nvim' },
+  { 'SmiteshP/nvim-navic', opts = { lsp = { auto_attach = true }, highlight = true } },
+  { 'kylechui/nvim-surround', version = '*', event = 'VeryLazy', config = true },
 } --[[@as LazySpec]], {
   -- Configure any other `lazy.nvim` configuration options here
   install = { colorscheme = { "astrotheme", "habamax" } },
