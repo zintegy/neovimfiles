@@ -190,6 +190,27 @@ vim.cmd("map <ScrollWheelUp> <C-Y>")
 vim.cmd("map <ScrollWheelDown> <C-E>")
 vim.cmd("highlight Search  guibg=#56545f")
 
+-- Background tint per devbox (matches iTerm2 profile chosen by the local
+-- ssh wrapper). Re-applied on every ColorScheme so colorscheme changes
+-- don't wipe it out. Local machine (no devbox match) keeps default.
+local function devbox_background()
+    local hostname = vim.fn.hostname()
+    local bg
+    if hostname:match("2404") then
+        bg = "#002A15"  -- devboxydeng2404: green tint
+    elseif hostname:match("devboxydeng") then
+        bg = "#121a25"  -- devboxydeng: blue-gray tint
+    end
+    if bg then
+        vim.api.nvim_set_hl(0, "Normal", { bg = bg })
+        vim.api.nvim_set_hl(0, "NormalNC", { bg = bg })
+        vim.api.nvim_set_hl(0, "NonText", { bg = bg })
+        vim.api.nvim_set_hl(0, "EndOfBuffer", { bg = bg })
+        vim.api.nvim_set_hl(0, "SignColumn", { bg = bg })
+    end
+end
+vim.api.nvim_create_autocmd({ "VimEnter", "ColorScheme" }, { callback = devbox_background })
+
 -- Copy GitHub link for current line
 local function github_link(start_line, end_line)
   local file = vim.fn.expand("%:p")
