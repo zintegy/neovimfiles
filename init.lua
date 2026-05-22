@@ -197,7 +197,7 @@ local function devbox_background()
     local hostname = vim.fn.hostname()
     local bg
     if hostname:match("2404") then
-        bg = "#002A15"  -- devboxydeng2404: green tint
+        bg = "#002015"  -- devboxydeng2404: green tint
     elseif hostname:match("devboxydeng") then
         bg = "#121a25"  -- devboxydeng: blue-gray tint
     end
